@@ -53,8 +53,17 @@ const registerUser = async (req, res) => {
       verificationToken
     });
 
-    // Send verification email
-    await sendVerificationEmail(email, verificationToken);
+    // Send verification email (optional - don't fail registration if email fails)
+    try {
+      await sendVerificationEmail(email, verificationToken);
+    } catch (emailError) {
+      logger.warn('No se pudo enviar el email de verificación:', { 
+        email, 
+        error: emailError.message,
+        note: 'El usuario fue registrado exitosamente pero el email no pudo ser enviado. Verifica las variables EMAIL_USER y EMAIL_PASS en las variables de entorno.'
+      });
+      // Continue with registration even if email fails
+    }
 
     // Return success response
     const formattedUser = formatUser(newUser);
