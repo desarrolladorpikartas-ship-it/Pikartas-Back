@@ -100,12 +100,41 @@ export const validateRequiredFields = (data, requiredFields) => {
 // ============================================
 
 /**
- * Valida el ID de un producto
+ * Valida el ID de un producto (acepta números enteros o UUIDs/strings)
  * @param {string|number} id - ID a validar
- * @returns {{isValid: boolean, productId: number|null, error: string|null}}
+ * @returns {{isValid: boolean, id: string|number|null, error: string|null}}
  */
 export const validateProductId = (id) => {
-  return validateId(id, 'ID de producto');
+  if (!id) {
+    return { isValid: false, id: null, error: 'ID de producto requerido' };
+  }
+  
+  // Convert to string for validation
+  const idStr = String(id).trim();
+  
+  if (idStr === '') {
+    return { isValid: false, id: null, error: 'ID de producto inválido' };
+  }
+  
+  // Try to validate as integer first (for backward compatibility)
+  const idInt = parseInt(idStr);
+  if (!isNaN(idInt) && idInt > 0) {
+    return { isValid: true, id: idInt, error: null };
+  }
+  
+  // If not a valid integer, accept as string (for UUIDs and other string IDs)
+  // UUID format: 8-4-4-4-12 hexadecimal characters
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(idStr)) {
+    return { isValid: true, id: idStr, error: null };
+  }
+  
+  // Accept any non-empty string (for other ID formats)
+  if (idStr.length > 0) {
+    return { isValid: true, id: idStr, error: null };
+  }
+  
+  return { isValid: false, id: null, error: 'ID de producto inválido' };
 };
 
 /**
@@ -190,7 +219,7 @@ export const validateSaleDates = (saleStartDate, saleEndDate) => {
 
 /**
  * Valida que el producto existe y está activo (sin validar stock)
- * @param {number} productId - ID del producto
+ * @param {string|number} productId - ID del producto
  * @returns {Promise<{isValid: boolean, product: object|null, error: string|null}>}
  */
 export const validateProductExists = async (productId) => {
@@ -258,7 +287,7 @@ export const validateCartItemData = (data) => {
 /**
  * Valida que el producto existe, está activo y tiene stock suficiente
  * Considera la cantidad ya presente en el carrito
- * @param {number} productId - ID del producto
+ * @param {string|number} productId - ID del producto
  * @param {number} requestedQuantity - Cantidad solicitada
  * @param {object} cart - Objeto del carrito (opcional, para verificar cantidad existente)
  * @returns {Promise<{isValid: boolean, product: object|null, error: string|null, availableStock: number}>}
@@ -285,11 +314,11 @@ export const validateProductForCart = async (productId, requestedQuantity, cart 
     };
   }
 
-  const productIdInt = idValidation.id;
+  const productIdValue = idValidation.id;
   const quantityInt = quantityValidation.value;
 
   // Buscar producto
-  const product = await productService.findById(productIdInt);
+  const product = await productService.findById(productIdValue);
   
   if (!product) {
     return {
@@ -313,7 +342,7 @@ export const validateProductForCart = async (productId, requestedQuantity, cart 
   // Verificar cantidad ya en el carrito (si existe)
   let quantityInCart = 0;
   if (cart && cart.cart_items) {
-    const existingItem = cart.cart_items.find(item => item.product_id === productIdInt);
+    const existingItem = cart.cart_items.find(item => item.product_id === productIdValue);
     if (existingItem) {
       quantityInCart = existingItem.quantity;
     }
