@@ -47,8 +47,9 @@ const connectDB = async () => {
   }
 
   try {
-    // Supabase no necesita conexión explícita, pero podemos hacer una consulta de prueba
-    const { data, error } = await supabase.from('users').select('count').limit(1)
+    // Consulta de prueba sobre users vía service role (tabla users suele tener RLS; anon fallaría)
+    const client = supabaseAdmin || supabase;
+    const { data, error } = await client.from('users').select('count').limit(1)
     if (error && error.code !== 'PGRST116') { // PGRST116 es "tabla no encontrada", lo cual es OK
       throw error
     }

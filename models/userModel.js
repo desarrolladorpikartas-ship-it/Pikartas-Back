@@ -1,11 +1,20 @@
-import { supabase, supabaseAdmin } from '../database.js';
+import { supabaseAdmin } from '../database.js';
 import logger from '../utils/logger.js';
 
-// Funciones para manejar usuarios
+function ensureAdminClient() {
+  if (!supabaseAdmin) {
+    logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+    throw new Error('Service role key not configured. User database operations are disabled.');
+  }
+  return supabaseAdmin;
+}
+
+// Funciones para manejar usuarios (todas vía service role para respetar RLS en anon)
 export const userService = {
   // Crear usuario
   async create(userData) {
-    const { data, error } = await supabase
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('users')
       .insert([{
         name: userData.name,
@@ -30,7 +39,8 @@ export const userService = {
 
   // Buscar usuario por email (excluye eliminados)
   async findByEmail(email) {
-    const { data, error } = await supabase
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('users')
       .select('*')
       .eq('email', email)
@@ -43,7 +53,8 @@ export const userService = {
 
   // Buscar usuario por email sin filtrar eliminados (útil para verificar unicidad)
   async findByEmailAny(email) {
-    const { data, error } = await supabase
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('users')
       .select('*')
       .eq('email', email)
@@ -55,7 +66,8 @@ export const userService = {
 
   // Buscar usuario por ID (excluye eliminados)
   async findById(id) {
-    const { data, error } = await supabase
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('users')
       .select('*')
       .eq('id', id)
@@ -68,7 +80,8 @@ export const userService = {
 
   // Buscar usuario por ID sin filtrar eliminados (útil para admin)
   async findByIdAny(id) {
-    const { data, error } = await supabase
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('users')
       .select('*')
       .eq('id', id)
@@ -80,7 +93,8 @@ export const userService = {
 
   // Buscar usuario por token de verificación (excluye eliminados)
   async findByVerificationToken(token) {
-    const { data, error } = await supabase
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('users')
       .select('*')
       .eq('verification_token', token)
@@ -91,13 +105,9 @@ export const userService = {
     return data;
   },
 
-  // Actualizar usuario (usa service role key para operaciones administrativas)
-  async update(id, updateData, isAdminOperation = false) {
-    // Validar que supabaseAdmin está disponible para operaciones administrativas
-    if (isAdminOperation && !supabaseAdmin) {
-      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
-      throw new Error('Service role key not configured. Admin operations are disabled.');
-    }
+  // Actualizar usuario (service role; ignora RLS)
+  async update(id, updateData, _isAdminOperation = false) {
+    const client = ensureAdminClient();
 
     // Filter out undefined values to prevent issues
     const cleanUpdateData = {};
@@ -113,8 +123,6 @@ export const userService = {
       updated_at: new Date().toISOString()
     };
 
-    // Usar supabaseAdmin para operaciones administrativas, supabase para operaciones de usuario
-    const client = isAdminOperation ? supabaseAdmin : supabase;
     const { data, error } = await client
       .from('users')
       .update(dataToUpdate)
@@ -141,11 +149,8 @@ export const userService = {
 
   // Eliminar usuario (soft delete - admin only - usa service role key)
   async delete(id) {
-    if (!supabaseAdmin) {
-      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
-      throw new Error('Service role key not configured. Admin operations are disabled.');
-    }
-    const { data, error } = await supabaseAdmin
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('users')
       .update({ 
         deleted_at: new Date().toISOString(),
@@ -166,7 +171,8 @@ export const userService = {
 
   // Buscar todos los usuarios (excluye eliminados)
   async findAll() {
-    const { data, error } = await supabase
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('users')
       .select('*')
       .is('deleted_at', null);
@@ -177,11 +183,8 @@ export const userService = {
 
   // Buscar todos los usuarios incluyendo eliminados (útil para admin - usa service role key)
   async findAllIncludingDeleted() {
-    if (!supabaseAdmin) {
-      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
-      throw new Error('Service role key not configured. Admin operations are disabled.');
-    }
-    const { data, error } = await supabaseAdmin
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('users')
       .select('*');
 
@@ -191,11 +194,8 @@ export const userService = {
 
   // Restaurar usuario eliminado (soft delete - admin only - usa service role key)
   async restore(id) {
-    if (!supabaseAdmin) {
-      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
-      throw new Error('Service role key not configured. Admin operations are disabled.');
-    }
-    const { data, error } = await supabaseAdmin
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('users')
       .update({ 
         deleted_at: null,
@@ -216,7 +216,8 @@ export const userService = {
 
   // Actualizar último login
   async updateLastLogin(id) {
-    const { data, error } = await supabase
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('users')
       .update({ 
         last_login: new Date().toISOString(),
