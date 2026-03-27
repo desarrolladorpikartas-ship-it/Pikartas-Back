@@ -1,15 +1,10 @@
 /**
- * Totales de checkout: impuesto, envío gratis, comparación con cotización cliente.
+ * Totales de checkout: impuesto y envío cotizado.
  */
 
 export function getTaxRate() {
   const r = parseFloat(process.env.SHOP_TAX_RATE ?? '0.08');
   return Number.isFinite(r) && r >= 0 ? r : 0.08;
-}
-
-export function getFreeShippingMinSubtotal() {
-  const v = parseFloat(process.env.FREE_SHIPPING_MIN_SUBTOTAL ?? '500');
-  return Number.isFinite(v) && v >= 0 ? v : 500;
 }
 
 export function getQuoteTolerancePesos() {
@@ -23,14 +18,13 @@ export function roundMoney(n) {
 
 /**
  * @param {number} subtotal
- * @param {number} quotedShipping - costo Starken domicilio (antes de regla gratis)
+ * @param {number} quotedShipping - costo Starken domicilio
  * @returns {{ taxAmount: number, shippingAmount: number, totalAmount: number }}
  */
 export function computeCheckoutTotals(subtotal, quotedShipping) {
   const taxRate = getTaxRate();
   const taxAmount = roundMoney(subtotal * taxRate);
-  const freeMin = getFreeShippingMinSubtotal();
-  const shippingAmount = subtotal >= freeMin ? 0 : roundMoney(quotedShipping);
+  const shippingAmount = roundMoney(quotedShipping);
   const totalAmount = roundMoney(subtotal + taxAmount + shippingAmount);
   return { taxAmount, shippingAmount, totalAmount };
 }

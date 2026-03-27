@@ -55,6 +55,16 @@ export const getShippingDestinations = async (req, res) => {
     if (error.code === 'STARKEN_NOT_CONFIGURED') {
       return errorResponse(res, error.message, 503);
     }
+    if (error.code === 'STARKEN_UPSTREAM' && error.httpStatus === 401) {
+      return errorResponse(
+        res,
+        'Starken rechazó las credenciales (401). Usa el RUT y clave de API que te asignaron para REST/QA (no el usuario del portal developers). Si el documento dice clave "key", suele ser un ejemplo: pide a Starken la clave real o prueba STARKEN_AUTHORIZATION_HEADER copiado desde Swagger (Authorize → petición que devuelva 200).',
+        502
+      );
+    }
+    if (error.code === 'STARKEN_UPSTREAM' && error.httpStatus) {
+      return errorResponse(res, error.message || 'Error al consultar Starken', 502);
+    }
     return serverErrorResponse(res, error, 'Error al obtener destinos de envío');
   }
 };
@@ -101,6 +111,16 @@ export const postShippingQuote = async (req, res) => {
     }
     if (error.code === 'STARKEN_QUOTE_FAILED' || error.code === 'STARKEN_NO_RATE') {
       return errorResponse(res, error.message, 400);
+    }
+    if (error.code === 'STARKEN_UPSTREAM' && error.httpStatus === 401) {
+      return errorResponse(
+        res,
+        'Starken rechazó las credenciales (401). Revisa STARKEN_AUTH_USER / STARKEN_AUTH_PASSWORD o STARKEN_AUTHORIZATION_HEADER en el servidor.',
+        502
+      );
+    }
+    if (error.code === 'STARKEN_UPSTREAM' && error.httpStatus) {
+      return errorResponse(res, error.message || 'Error al consultar Starken', 502);
     }
     return serverErrorResponse(res, error, 'Error al cotizar envío');
   }

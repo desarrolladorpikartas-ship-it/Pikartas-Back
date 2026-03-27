@@ -71,12 +71,20 @@ async function starkenFetch(path, options = {}) {
     data = text ? JSON.parse(text) : null;
   } catch {
     logger.warn('Starken respuesta no JSON', { url, snippet: text?.slice(0, 200) });
-    throw new Error(`Respuesta inválida de Starken (${res.status})`);
+    const parseErr = new Error(`Respuesta inválida de Starken (${res.status})`);
+    parseErr.code = 'STARKEN_UPSTREAM';
+    parseErr.httpStatus = res.status;
+    throw parseErr;
   }
 
   if (!res.ok) {
     logger.error('Starken HTTP error', { url, status: res.status, body: data });
-    throw new Error(data?.mensajeRespuesta || data?.message || `Error Starken HTTP ${res.status}`);
+    const httpErr = new Error(
+      data?.mensajeRespuesta || data?.message || `Error Starken HTTP ${res.status}`
+    );
+    httpErr.code = 'STARKEN_UPSTREAM';
+    httpErr.httpStatus = res.status;
+    throw httpErr;
   }
 
   return data;
