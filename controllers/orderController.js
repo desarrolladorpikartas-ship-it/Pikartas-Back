@@ -13,6 +13,8 @@ import { calculateOrderStats, calculateDateRange } from '../utils/statsHelper.js
 import { reserveStockForOrder, validateStockForCart, releaseStockForOrder } from '../utils/stockHelper.js';
 import { sendPaymentFailedEmail, sendOrderProcessingEmail, sendOrderShippedEmail, sendOrderDeliveredEmail } from '../utils/mailer.js';
 import { isStarkenConfigured, quoteDomicilio } from '../utils/starkenService.js';
+import { isStarkenShippingMode } from '../utils/shippingMode.js';
+import { estimateShippingCost } from '../utils/estimatedShipping.js';
 import {
   computeCheckoutTotals,
   shippingMatchesClient
@@ -20,7 +22,7 @@ import {
 
 /**
  * @param {object} [pricing]
- * @param {number} [pricing.codigoCiudadDestino] - requerido si Starken está configurado
+ * @param {number} [pricing.codigoCiudadDestino] - requerido (Starken o destino estimado)
  * @param {number} [pricing.clientShippingAmount] - envío mostrado al usuario (tras regla gratis)
  * @param {number} [pricing.kilos]
  * @param {number} [pricing.alto]
@@ -56,12 +58,18 @@ export const createOrderFromCart = async (userId, shippingAddress, notes = null,
   let shippingAmount = null;
   let starkenCodigoCiudadDestino = null;
 
-  if (isStarkenConfigured()) {
-    const dest = pricing.codigoCiudadDestino;
-    if (dest === undefined || dest === null || Number.isNaN(parseInt(dest, 10))) {
-      throw new Error('Selecciona una ciudad de destino para calcular el envío.');
+  const dest = pricing.codigoCiudadDestino;
+  if (dest === undefined || dest === null || Number.isNaN(parseInt(dest, 10))) {
+    throw new Error('Selecciona una ciudad de destino para calcular el envío.');
+  }
+  starkenCodigoCiudadDestino = parseInt(dest, 10);
+
+  if (isStarkenShippingMode()) {
+    if (!isStarkenConfigured()) {
+      throw new Error(
+        'El servidor no tiene configurada la cotización de envío (Starken). Contacta al administrador.'
+      );
     }
-    starkenCodigoCiudadDestino = parseInt(dest, 10);
     const overrides = {};
     if (pricing.kilos !== undefined && pricing.kilos !== '') overrides.kilos = parseFloat(pricing.kilos);
     if (pricing.alto !== undefined && pricing.alto !== '') overrides.alto = parseFloat(pricing.alto);
@@ -73,15 +81,17 @@ export const createOrderFromCart = async (userId, shippingAddress, notes = null,
     taxAmount = totals.taxAmount;
     shippingAmount = totals.shippingAmount;
     totalAmount = totals.totalAmount;
-
-    if (!shippingMatchesClient(pricing.clientShippingAmount, shippingAmount)) {
-      throw new Error(
-        'El costo de envío cambió respecto a la cotización. Actualiza el checkout e intenta de nuevo.'
-      );
-    }
   } else {
+    const quoted = estimateShippingCost(starkenCodigoCiudadDestino);
+    const totals = computeCheckoutTotals(subtotal, quoted);
+    taxAmount = totals.taxAmount;
+    shippingAmount = totals.shippingAmount;
+    totalAmount = totals.totalAmount;
+  }
+
+  if (!shippingMatchesClient(pricing.clientShippingAmount, shippingAmount)) {
     throw new Error(
-      'El servidor no tiene configurada la cotización de envío (Starken). Contacta al administrador.'
+      'El costo de envío cambió respecto a la cotización. Actualiza el checkout e intenta de nuevo.'
     );
   }
 
@@ -163,6 +173,9 @@ export const createOrder = async (req, res) => {
       msg.includes('Dirección de envío') ||
       msg.includes('Stock insuficiente')
     ) {
+      return errorResponse(res, msg, 400);
+    }
+    if (msg.includes('Destino de envío no disponible') || msg.includes('Código de destino de envío inválido')) {
       return errorResponse(res, msg, 400);
     }
     if (msg.includes('cotización de envío') || msg.includes('Starken')) {

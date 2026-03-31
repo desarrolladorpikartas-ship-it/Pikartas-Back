@@ -4,6 +4,8 @@ import {
   quoteDomicilio,
   getCachedCiudadesDestino
 } from '../utils/starkenService.js';
+import { isStarkenShippingMode } from '../utils/shippingMode.js';
+import { getEstimatedDestinations, estimateShippingCost } from '../utils/estimatedShipping.js';
 import { successResponse, serverErrorResponse, errorResponse } from '../utils/responseHelper.js';
 
 /**
@@ -12,6 +14,11 @@ import { successResponse, serverErrorResponse, errorResponse } from '../utils/re
  */
 export const getShippingDestinations = async (req, res) => {
   try {
+    if (!isStarkenShippingMode()) {
+      const data = getEstimatedDestinations();
+      return successResponse(res, data);
+    }
+
     if (!isStarkenConfigured()) {
       return errorResponse(
         res,
@@ -75,6 +82,28 @@ export const getShippingDestinations = async (req, res) => {
  */
 export const postShippingQuote = async (req, res) => {
   try {
+    const { codigoCiudadDestino, kilos, alto, ancho, largo } = req.body || {};
+
+    if (!isStarkenShippingMode()) {
+      const dest = parseInt(codigoCiudadDestino, 10);
+      if (!Number.isFinite(dest) || dest <= 0) {
+        return errorResponse(res, 'codigoCiudadDestino inválido', 400);
+      }
+      try {
+        const shippingCost = estimateShippingCost(dest);
+        return successResponse(res, {
+          codigoCiudadDestino: dest,
+          shippingCost,
+          mode: 'estimated'
+        });
+      } catch (e) {
+        if (e.code === 'ESTIMATE_INVALID_DEST' || e.code === 'ESTIMATE_UNKNOWN_DEST') {
+          return errorResponse(res, e.message, 400);
+        }
+        throw e;
+      }
+    }
+
     if (!isStarkenConfigured()) {
       return errorResponse(
         res,
@@ -83,7 +112,6 @@ export const postShippingQuote = async (req, res) => {
       );
     }
 
-    const { codigoCiudadDestino, kilos, alto, ancho, largo } = req.body || {};
     const dest = parseInt(codigoCiudadDestino, 10);
     if (!Number.isFinite(dest) || dest <= 0) {
       return errorResponse(res, 'codigoCiudadDestino inválido', 400);

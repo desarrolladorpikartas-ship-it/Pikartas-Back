@@ -48,6 +48,10 @@ jest.unstable_mockModule('../utils/starkenService.js', () => ({
   quoteDomicilio: jest.fn().mockResolvedValue({ shippingCost: 2500 })
 }));
 
+jest.unstable_mockModule('../utils/shippingMode.js', () => ({
+  isStarkenShippingMode: jest.fn(() => true)
+}));
+
 const mockAuthHelper = {
   requireAuth: jest.fn(),
   requireOwnershipOrAdmin: jest.fn(),

@@ -47,8 +47,8 @@ jest.unstable_mockModule('../controllers/orderController.js', () => ({
   createOrderFromCart: (...args) => mockCreateOrderFromCart(...args)
 }));
 
-jest.unstable_mockModule('../utils/starkenService.js', () => ({
-  isStarkenConfigured: jest.fn(() => true)
+jest.unstable_mockModule('../utils/shippingMode.js', () => ({
+  isShippingConfigured: jest.fn(() => true)
 }));
 
 let initiatePayment;

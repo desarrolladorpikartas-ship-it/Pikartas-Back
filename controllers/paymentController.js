@@ -5,7 +5,7 @@ import { supabase, supabaseAdmin } from '../database.js';
 import logger from '../utils/logger.js';
 import { requireAuth } from '../utils/authHelper.js';
 import { successResponse, errorResponse, notFoundResponse, serverErrorResponse } from '../utils/responseHelper.js';
-import { isStarkenConfigured } from '../utils/starkenService.js';
+import { isShippingConfigured } from '../utils/shippingMode.js';
 import { sendPaymentConfirmationEmail, sendPaymentFailedEmail, sendPaymentNotificationToAdmin } from '../utils/mailer.js';
 import { releaseStockForOrder } from '../utils/stockHelper.js';
 
@@ -30,10 +30,10 @@ export const initiatePayment = async (req, res) => {
       hasShippingAddress: !!shippingAddress
     });
 
-    if (!isStarkenConfigured()) {
+    if (!isShippingConfigured()) {
       return errorResponse(
         res,
-        'Cotización de envío no disponible en el servidor. Configura las variables Starken.',
+        'Cotización de envío no disponible en el servidor. Configura SHIPPING_PROVIDER=estimated o credenciales Starken con SHIPPING_PROVIDER=starken.',
         503
       );
     }
@@ -124,6 +124,11 @@ export const initiatePayment = async (req, res) => {
     ) {
       errorMessage = error.message;
       return errorResponse(res, errorMessage, 400);
+    } else if (
+      error.message.includes('Destino de envío no disponible') ||
+      error.message.includes('Código de destino de envío inválido')
+    ) {
+      return errorResponse(res, error.message, 400);
     } else if (error.message.includes('cotización de envío') || error.message.includes('Starken')) {
       return errorResponse(res, error.message, 503);
     } else if (error.message.includes('FRONTEND_URL')) {
